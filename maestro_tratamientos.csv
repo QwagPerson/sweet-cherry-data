@@ -1,0 +1,18 @@
+tratamiento_id,tratamiento,tipo
+0,control,entrada
+1,fsh,entrada
+2,zn+eth,entrada
+3,zn+u+eth,entrada
+4,ethephon,entrada
+5,aba,entrada
+6,control,salida
+7,dormex 3% + break,salida
+8,dormex 2% + 2% ac. mineral,salida
+9,erger 5% + 2% ac. mineral,salida
+10,erger 2% + 2% ac. mineral,salida
+11,erger 5% + nca 6%,salida
+12,erger 5% + nca 4%,salida
+13,N/A,salida
+14,N/A,entrada
+15,dormex 2% + break,salida
+16,"dormex 1,5% + 2% ac. mineral",salida
