@@ -1,0 +1,14 @@
+id,nombre,tipo,codigo_2,codigo,producto,especial_zonas_frias
+1,control,entrada,Control,ECON,,false
+2,acido abscisico,entrada,ABA,EABA,protone,false
+3,ciclanilida+ethephon,entrada,FSH,ECIC+EETH,finish,false
+4,ethephon,entrada,ETH,EETH,ethrel,false
+5,ethephon+zinc,entrada,ETH + ZN,EETH+EZIN,"ethrel,zinc",false
+6,ethephon+urea+zinc,entrada,ETH + ZN + U,EETH+EURE+EZIN,"ethrel,urea,zinc",false
+7,control,salida,Control,SCON,,false
+8,cianamida hidrogenada 1.5%+coadyuvante,salida,"C.H. 1,5% (i.a.)",SCAH+SCOD,"dormex,break",true
+9,cianamida hidrogenada 1%+aceite mineral 2%,salida,C.H. 1% (i.a.) + Ac. Min. 2%,SCAH+SAMI,"dormex,winspray",true
+10,alternativa bioestimulante 5%+nitrato de calcio 6%,salida,Erger 5% (p.c.) + N. Ca 6%,SABI+SNDC,"erger,nitrato de calcio",true
+11,cianamida hidrogenada 1%+coadyuvante,salida,C.H. 1% (i.a.),SCAH+SCOD,"dormex,break",false
+12,cianamida hidrogenada 0.75%+aceite mineral 2%,salida,"C.H. 0,75% (i.a.) + Ac. Min 2%",SCAH+SAMI,"dormex,winspray",false
+13,alternativa bioestimulante 5%+nitrato de calcio 4%,salida,Erger 5% (p.c.) + N. Ca 4%,SABI+SNDC,"erger,nitrato de calcio",false
