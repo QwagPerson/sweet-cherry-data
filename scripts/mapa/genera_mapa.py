@@ -7,7 +7,7 @@ import subprocess
 import time
 
 # Leer el archivo CSV con los datos de lugares
-df = pd.read_csv('../../lugar.csv')
+df = pd.read_csv('../../maestros/lugar.csv')
 
 # Definir colores para cada condición climática
 colores = {

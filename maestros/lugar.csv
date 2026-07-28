@@ -1,0 +1,9 @@
+codigo,id,nombre,terminos_relacionados,latitud,longitud,condicion
+NIC,1,los niches,Wapri | Marengo | Solfrut Sta Magdalena,-35.037077,-71.189804,frio
+MEL,2,melipilla,,-33.756010,-71.168792,calido
+PIC,3,pichidegua,,-34.344494,-71.317168,calido
+SAR,4,sarmiento,,-34.943689,-71.219623,moderado
+TEM,5,teno montaña,Noblefruit | Don Sergio,-34.910514,-71.029076,frio
+TEO,6,teno oriente,Noblefruit | Santa Ana,-34.917234,-71.053686,moderado
+TEP,7,teno poniente,Gonzalo Prado Vial | Confirmar con Cristobal si es TENO RAUCO,-34.889115,-71.228315,moderado
+VIL,8,viluco,Grupo Errazuriz,-33.777341,-70.762432,moderado
