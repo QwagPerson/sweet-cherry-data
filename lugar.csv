@@ -1,4 +1,4 @@
-id,nombre,codigo,longitud,latitud,condicion
+id,nombre,codigo,latitud,longitud,condicion
 1,los niches,NIC,-35.037077,-71.189804,frio
 2,melipilla,MEL,-33.756010,-71.168792,calido
 3,pichidegua,PIC,-34.344494,-71.317168,calido
