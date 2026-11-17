@@ -1,0 +1,28 @@
+{
+  "sources": [
+    {
+      "path": "D:\\Projects\\Sweet-Cherry\\sweet-cherry-data\\data\\bronze\\2025\\Consolidado Temperatura Campos Completo.xlsx",
+      "sha256": "af93b604d533afcfd4f817973a4734a9f355ce32c61763d94bc913b68f6e8eff"
+    },
+    {
+      "path": "D:\\Projects\\Sweet-Cherry\\sweet-cherry-data\\data\\bronze\\2026\\Temperaturas 2026.xlsx",
+      "sha256": "da75b569ec8c9bf775e054279daf6e6aa8fed50f7ad5daa9d20dba58bf3f816b"
+    },
+    {
+      "path": "D:\\Projects\\Sweet-Cherry\\sweet-cherry-data\\data\\bronze\\2026\\Temperaturas 2026 V2.xlsx",
+      "sha256": "007c0ddc6d9277cf6ca8f65741e8d5b0aa6ef4e2cb4721a34f0feb114d6c0cfc"
+    },
+    {
+      "path": "D:\\Projects\\Sweet-Cherry\\sweet-cherry-data\\data\\bronze\\2025\\FIA 2025 - Temperatura campos.xlsx",
+      "sha256": "3f3c61a2d867dc1b96fa48d56ad8acc6c583ebc105904e5a3173ac217fa9fd0a"
+    },
+    {
+      "path": "D:\\Projects\\Sweet-Cherry\\sweet-cherry-data\\data\\bronze\\2024\\FIA - Temperaturas 2024.xlsx",
+      "sha256": "e28483ae307884073b045d5d0b73ebc00b8e12dd162bdf032d585d8a2cbfc832"
+    }
+  ],
+  "mode": "retrospective",
+  "cutoff": "None",
+  "timezone": "hora local nominal sin zona declarada; sin conversion UTC",
+  "units": "Celsius; explicit in FIA 2025, assumed from project in other files"
+}

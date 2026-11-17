@@ -208,12 +208,12 @@ def read_historical_temperatures(aliases: dict[str, str]) -> pd.DataFrame:
     return df[["codigo_lugar", "lugar_raw", "ds", "temperatura_c", "fuente"]]
 
 
-def read_2026_temperatures(aliases: dict[str, str]) -> pd.DataFrame:
+def read_2026_temperatures(aliases: dict[str, str], path: Path = TEMPERATURES_2026_PATH) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
-    excel = pd.ExcelFile(TEMPERATURES_2026_PATH)
+    excel = pd.ExcelFile(path)
 
     for sheet_name in excel.sheet_names:
-        df = pd.read_excel(TEMPERATURES_2026_PATH, sheet_name=sheet_name)
+        df = pd.read_excel(excel, sheet_name=sheet_name)
         if df.empty:
             continue
 
@@ -234,7 +234,7 @@ def read_2026_temperatures(aliases: dict[str, str]) -> pd.DataFrame:
                 "lugar_raw": df["Lugar"],
                 "ds": combine_date_and_hour(df["Fecha"], df["Hora"]),
                 "temperatura_c": pd.to_numeric(df[temperature_column], errors="coerce"),
-                "fuente": f"{TEMPERATURES_2026_PATH.name}::{sheet_name}",
+                "fuente": f"{path.name}::{sheet_name}",
             }
         )
         frames.append(frame)
@@ -301,28 +301,49 @@ def fill_with_mapping(
     value_map: pd.Series,
     keys: list[str],
     method: str,
+    donor_counts: pd.Series | None = None,
+    donor_years: pd.Series | None = None,
 ) -> None:
     missing = frame["temperatura_c"].isna()
     if not missing.any():
         return
 
-    lookup = frame.loc[missing, keys].apply(tuple, axis=1).map(value_map)
+    lookup_keys = frame.loc[missing, keys[0]] if len(keys) == 1 else frame.loc[missing, keys].apply(tuple, axis=1)
+    lookup = lookup_keys.map(value_map)
     fill_mask = missing & lookup.notna()
     frame.loc[fill_mask, "temperatura_c"] = lookup.loc[fill_mask]
     frame.loc[fill_mask, "metodo_imputacion"] = method
+    tuples = frame.loc[fill_mask, keys[0]] if len(keys) == 1 else frame.loc[fill_mask, keys].apply(tuple, axis=1)
+    if donor_counts is not None:
+        frame.loc[fill_mask, "donantes_metodo_n"] = tuples.map(donor_counts)
+    if donor_years is not None:
+        frame.loc[fill_mask, "donantes_anios"] = tuples.map(donor_years)
 
 
-def complete_and_impute_zone(zone: pd.DataFrame) -> pd.DataFrame:
-    zone = zone.sort_values("ds").copy()
+def complete_and_impute_zone(zone: pd.DataFrame, *, climatology_mode: str = "retrospective", cutoff: pd.Timestamp | None = None, start: pd.Timestamp | None = None, end: pd.Timestamp | None = None) -> pd.DataFrame:
+    if zone.empty:
+        raise ValueError("Cannot reconstruct an empty zone")
     code = zone["codigo_lugar"].iloc[0]
+    if climatology_mode not in {"retrospective", "cutoff", "none"}:
+        raise ValueError("climatology_mode must be retrospective, cutoff or none")
+    if climatology_mode == "cutoff" and cutoff is None:
+        raise ValueError("cutoff mode requires a cutoff timestamp")
+    if cutoff is not None:
+        cutoff = pd.Timestamp(cutoff)
+        zone = zone.loc[zone["ds"] <= cutoff].copy()
+        if end is not None and pd.Timestamp(end) > cutoff:
+            raise ValueError("end cannot exceed cutoff: this is a reconstruction, not a forecast")
+        if zone.empty:
+            raise ValueError(f"Cannot reconstruct {code}: no observations at or before cutoff")
+    zone = zone.sort_values("ds").copy()
 
     observed = zone.loc[zone["temperatura_c"].notna()].copy()
     if observed.empty:
         raise ValueError(f"Cannot impute {code}: no observed temperatures available")
 
     full_range = pd.date_range(
-        observed["ds"].min(),
-        observed["ds"].max(),
+        pd.Timestamp(start) if start is not None else observed["ds"].min(),
+        pd.Timestamp(end) if end is not None else observed["ds"].max(),
         freq="h",
     )
     full = (
@@ -351,28 +372,49 @@ def complete_and_impute_zone(zone: pd.DataFrame) -> pd.DataFrame:
     full.loc[full["temperatura_c"].isna(), "metodo_imputacion"] = pd.NA
 
     full = full.set_index("ds")
+    missing = full["temperatura_c"].isna()
+    groups = missing.ne(missing.shift()).cumsum()
+    gap_lengths = missing.groupby(groups).transform("sum")
+    full["hueco_original_horas"] = gap_lengths.where(missing, 0).astype(int)
     interpolated = full["temperatura_c"].interpolate(
         method="time",
-        limit=SHORT_GAP_LIMIT_HOURS,
         limit_area="inside",
     )
-    linear_mask = full["temperatura_c"].isna() & interpolated.notna()
+    linear_mask = missing & gap_lengths.le(SHORT_GAP_LIMIT_HOURS) & interpolated.notna()
     full.loc[linear_mask, "temperatura_c"] = interpolated.loc[linear_mask]
     full.loc[linear_mask, "metodo_imputacion"] = (
         f"interpolacion_temporal_hasta_{SHORT_GAP_LIMIT_HOURS}h"
     )
+    observed_times = pd.Series(full.index, index=full.index).where(~missing)
+    full.loc[linear_mask, "interpolacion_desde"] = observed_times.ffill().loc[linear_mask]
+    full.loc[linear_mask, "interpolacion_hasta"] = observed_times.bfill().loc[linear_mask]
     full = full.reset_index()
 
     observed = observed.assign(
         mes=observed["ds"].dt.month,
         dia=observed["ds"].dt.day,
         hora=observed["ds"].dt.hour,
+        anio=observed["ds"].dt.year,
     )
     full = full.assign(
         mes=full["ds"].dt.month,
         dia=full["ds"].dt.day,
         hora=full["ds"].dt.hour,
     )
+
+    # Only original observations are donors; no synthetic temperature trains climatology.
+    full["modo_climatologia"] = climatology_mode
+    full["corte_climatologia"] = cutoff if cutoff is not None else pd.NaT
+    full["donantes_desde"] = observed["ds"].min() if climatology_mode != "none" else pd.NaT
+    full["donantes_hasta"] = observed["ds"].max() if climatology_mode != "none" else pd.NaT
+    full["donantes_total"] = len(observed) if climatology_mode != "none" else 0
+    full["donantes_metodo_n"] = 0
+    full["donantes_anios"] = ""
+    if climatology_mode == "none":
+        full["metodo_imputacion"] = full["metodo_imputacion"].fillna("faltante")
+        full["es_imputado"] = ~full["metodo_imputacion"].isin(["observado", "faltante"])
+        full["tipo_dato"] = full["metodo_imputacion"].map(lambda x: "observado" if x == "observado" else "faltante" if x == "faltante" else "interpolado")
+        return full.drop(columns=["mes", "dia", "hora"])
 
     climatology_day_hour = observed.groupby(["mes", "dia", "hora"])[
         "temperatura_c"
@@ -383,24 +425,32 @@ def complete_and_impute_zone(zone: pd.DataFrame) -> pd.DataFrame:
     climatology_hour = observed.groupby(["hora"])["temperatura_c"].median()
     zone_median = observed["temperatura_c"].median()
 
+    def donor_maps(keys):
+        grouped = observed.groupby(keys)
+        return grouped.size(), grouped["anio"].agg(lambda v: "|".join(str(y) for y in sorted(v.unique())))
+
     fill_with_mapping(
         full,
         climatology_day_hour,
         ["mes", "dia", "hora"],
         "mediana_estacional_mes_dia_hora",
+        *donor_maps(["mes", "dia", "hora"]),
     )
     fill_with_mapping(
         full,
         climatology_month_hour,
         ["mes", "hora"],
         "mediana_estacional_mes_hora",
+        *donor_maps(["mes", "hora"]),
     )
-    fill_with_mapping(full, climatology_hour, ["hora"], "mediana_horaria_zona")
+    fill_with_mapping(full, climatology_hour, ["hora"], "mediana_horaria_zona", *donor_maps(["hora"]))
 
     still_missing = full["temperatura_c"].isna()
     if still_missing.any():
         full.loc[still_missing, "temperatura_c"] = zone_median
         full.loc[still_missing, "metodo_imputacion"] = "mediana_zona"
+        full.loc[still_missing, "donantes_metodo_n"] = len(observed)
+        full.loc[still_missing, "donantes_anios"] = "|".join(str(y) for y in sorted(observed.anio.unique()))
 
     if full["temperatura_c"].isna().any():
         raise ValueError(f"Imputation left null temperatures for {code}")
@@ -408,6 +458,7 @@ def complete_and_impute_zone(zone: pd.DataFrame) -> pd.DataFrame:
     full["temperatura_c"] = full["temperatura_c"].round(3)
     full["temperatura_observada_c"] = full["temperatura_observada_c"].round(3)
     full["es_imputado"] = full["metodo_imputacion"] != "observado"
+    full["tipo_dato"] = full["metodo_imputacion"].map(lambda x: "observado" if x == "observado" else "interpolado" if x.startswith("interpolacion") else "climatologia")
     full = full.drop(columns=["mes", "dia", "hora"])
 
     expected_hours = pd.date_range(full["ds"].min(), full["ds"].max(), freq="h")
@@ -524,7 +575,10 @@ def build_summary(series: pd.DataFrame) -> pd.DataFrame:
             fecha_inicio=("ds", "min"),
             fecha_fin=("ds", "max"),
             horas=("ds", "size"),
-            horas_observadas=("es_imputado", lambda values: int((~values).sum())),
+            horas_observadas=("metodo_imputacion", lambda values: int(values.eq("observado").sum())),
+            horas_interpoladas=("metodo_imputacion", lambda values: int(values.str.startswith("interpolacion").sum())),
+            horas_climatologia=("metodo_imputacion", lambda values: int(values.str.startswith("mediana").sum())),
+            horas_faltantes=("temperatura_c", lambda values: int(values.isna().sum())),
             horas_imputadas=("es_imputado", lambda values: int(values.sum())),
             temperatura_min_c=("temperatura_c", "min"),
             temperatura_max_c=("temperatura_c", "max"),
@@ -568,30 +622,8 @@ def write_outputs(series: pd.DataFrame, summary: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    master = read_lugar_master()
-    aliases = build_place_aliases(master)
-
-    raw = pd.concat(
-        [
-            read_historical_temperatures(aliases),
-            read_2026_temperatures(aliases),
-        ],
-        ignore_index=True,
-    )
-
-    validate_places(raw, master)
-    hourly = aggregate_hourly(raw, master)
-    large_gap_report = build_large_gap_report(hourly, master)
-    series = build_time_series(hourly, master)
-    summary = build_summary(series)
-    write_outputs(series, summary)
-
-    print(f"Archivo consolidado: {CONSOLIDATED_OUTPUT_PATH}")
-    print(f"Resumen: {SUMMARY_OUTPUT_PATH}")
-    print(f"Series por lugar: {PER_PLACE_OUTPUT_DIR}")
-    print_large_gap_report(large_gap_report)
-    print()
-    print(summary.to_string(index=False))
+    from audited import main as audited_main
+    audited_main()
 
 
 if __name__ == "__main__":
